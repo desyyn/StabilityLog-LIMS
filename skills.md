@@ -1,57 +1,70 @@
 # StabilityLog Skills
 
 ## Business Context
-StabilityLog adalah sistem **Laboratory Information Management System (LIMS)** yang dikembangkan untuk industri skincare. Sistem ini berfungsi untuk:
 
-- Mengelola data uji stabilitas produk skincare.
-- Menyediakan otomatisasi jadwal pengujian (H+1, H+7, H+30).
-- Menyediakan audit trail untuk setiap perubahan data.
-- Memberikan deteksi anomali hasil uji.
-- Menghasilkan QR Code unik untuk setiap batch sampel.
+**StabilityLog** adalah sistem LIMS (_Laboratory Information Management System_) khusus untuk industri skincare yang dikembangkan dengan framework Laravel. Fokus utama sistem ini adalah mengelola pengujian stabilitas produk (stabilitas dipercepat dan jangka panjang) untuk memastikan kualitas formula sebelum dipasarkan. Sistem ini menjembatani peran Formulator dalam merancang pengujian dan Teknisi dalam mengeksekusi pengujian di laboratorium, dengan pengawasan dari QA dan Manajer R&D.
 
 ## Technical Standards (Laravel)
-Prinsip teknis diadaptasi dari best practices Kotlin/Spring Boot agar sesuai dengan ekosistem Laravel:
-- **Dependency Injection:** Gunakan Laravel Service Container dan constructor injection untuk dependensi. Hindari penggunaan `facades` secara berlebihan.
-- **Immutability:** Gunakan `readonly` properties (PHP 8.2) atau deklarasi `private`/`protected` untuk menjaga integritas data. Hindari mutasi state yang tidak perlu.
-- **Configuration:**
-  - Gunakan file `.env` untuk konfigurasi eksternal.
-  - Gunakan `config/*.php` untuk type-safe configuration.
-  - Jangan pernah hardcode secrets; gunakan environment variables atau secret manager.
-- **Validation:** Gunakan Laravel Form Request untuk validasi data. Terapkan aturan validasi sesuai domain (misalnya validasi pH).
-- **Package Structure:** Organisasi kode berdasarkan domain/feature (`App/Modules/Product`, `App/Modules/LabTest`) bukan hanya berdasarkan layer.
-- **Logging:** Gunakan Monolog dengan channel terpisah. Terapkan parameterized logging (`logger()->info('Processing batch', ['batch_id' => $id])`).
-- **Testing:**
-  - Gunakan PHPUnit sebagai default.
-  - Gunakan PestPHP untuk sintaks yang lebih idiomatis.
-  - Gunakan Laravel Test Components (`assertDatabaseHas`, `assertJson`) untuk integrasi.
-  - Gunakan Testcontainers atau Docker untuk uji integrasi dengan database.
+
+AI harus mengikuti standar pengembangan Laravel yang mengadopsi prinsip ketat agar kode maintainable dan robust:
+
+1.  **Dependency Injection:** Gunakan Laravel Service Container dan _constructor injection_ pada Controller atau Service. Hindari penggunaan Facades secara berlebihan; prioritaskan _type-hinting_ pada interface.
+
+2.  **Immutability:** Manfaatkan fitur PHP 8.2+ seperti `readonly properties` untuk Data Transfer Objects (DTO). Gunakan visibilitas `protected` atau `private` pada properti class untuk mencegah mutasi state yang tidak disengaja.
+
+3.  **Configuration Externalization:** Seluruh kredensial, kunci API, dan parameter lingkungan wajib menggunakan file `.env` dan diakses melalui `config/*.php`. Dilarang keras melakukan _hardcode_ nilai sensitif atau konfigurasi di dalam logika bisnis.
+
+4.  **Domain Validation:** Gunakan **Laravel Form Request** untuk validasi input. Terapkan validasi domain yang ketat (contoh: pH wajib 0-14, interval pengujian harus berupa angka positif).
+
+5.  **Package by Feature (Modular):** Organisasikan kode berdasarkan fitur/domain, bukan sekadar MVC standar. Contoh struktur: `App/Modules/Product`, `App/Modules/StabilityTest`, `App/Modules/Inventory`.
+
+6.  **Structured Logging:** Gunakan Monolog dengan channel terpisah untuk audit dan error. Terapkan _parameterized logging_ untuk memudahkan tracking tanpa melakukan konkatenasi string secara manual.
+
+7.  **Testing Culture:** Setiap fitur wajib memiliki _Automated Test_ menggunakan **Pest** atau **PHPUnit**. Gunakan _Database Transactions_ atau _Testcontainers_ untuk memastikan isolasi data saat testing.
 
 ## Mandatory Capabilities
-- **Validasi pH:**
-  - Nilai pH harus berada di rentang 0.0–14.0.
-  - Validasi dilakukan di level Form Request dan Model.
-- **Konfigurasi Parameter Pengujian**
-  - Saat registrasi, user wajib memilih parameter (pH, Viskositas, atau Organoleptik).
-  - User menetapkan ambang batas (min/max) untuk setiap parameter yang dipilih.
-- **Otomatisasi Jadwal Uji:**
-  - Saat produk diregistrasi, sistem otomatis membuat jadwal uji H+1, H+7, H+30.
-- **Deteksi Anomali:**
-  - Jika hasil lab di luar batas toleransi, sistem menandai data dengan status anomali.
-  - UI menampilkan highlight merah.
-- **Audit Trail:**
-  - Gunakan Laravel Model Observers untuk mencatat perubahan (`old_value`, `new_value`).
-  - Simpan di tabel `audit_logs` dengan metadata user.
-- **QR Code Batch:**
-  - Generate QR Code unik untuk setiap batch menggunakan library seperti `simple-qrcode`.
-  - QR Code berisi informasi batch ID dan link ke detail batch.
+
+Sistem wajib memiliki kemampuan berikut sesuai dengan PRD Final:
+
+- **Pendaftaran Sampel & Identifikasi:** Pendaftaran setiap batch produk menghasilkan **QR Code unik**. Status awal otomatis diset ke "Ready for Testing".
+
+- **Parameter Uji Dinamis:** Mendukung dua tipe parameter:
+    - **Numerik:** pH dan Viskositas (memerlukan batas toleransi).
+
+    - **Organoleptik:** Warna, Bau, Tekstur, Kejernihan (input kualitatif).
+
+- **Sistem Penjadwalan Fleksibel (Revisi):**
+    - **Opsi Standar:** Otomatis membuat jadwal berdasarkan interval bulan (Accelerated: 0,1,2,3,6 atau Long-Term: 0,1,2,3,6,9,12).
+
+    - **Opsi Custom:** User menginput interval dalam satuan **hari** (contoh: `1, 7, 30`).
+
+    - **Mekanisme:** Sistem menghitung tanggal konkret (`created_at` + interval) dan membuat entri baris di tabel `stability_tests`.
+
+- **Kontrol Toleransi & Anomali (Revisi):**
+    - Batas minimum dan maksimum **hanya berlaku untuk parameter numerik**.
+
+    - Sistem dilarang meminta atau menyimpan batas min/max untuk parameter organoleptik.
+
+    - Deteksi otomatis: Jika hasil uji numerik keluar dari range, sistem memberi flag anomali.
+
+- **Audit Trail:** Mencatat log aktivitas (siapa, kapan, data lama, data baru) menggunakan **Laravel Model Observers** untuk menjaga integritas data.
+
+- **RBAC (Role-Based Access Control):** Implementasi 5 role (Admin, Formulator, Teknisi, Manajer R&D, QA) dengan izin akses yang terisolasi.
+
+- **Input Hasil Uji Spesifik:** Form input menyesuaikan tipe data: angka untuk numerik, dan dropdown/radio button untuk organoleptik.
 
 ## UI Rules (Blade/Bootstrap)
-- **Consistency:** Gunakan Blade Components untuk UI reusable (form, table, alert).
-- **Validation Feedback:** Tampilkan pesan validasi di bawah input dengan styling Bootstrap `invalid-feedback`.
-- **Anomaly Highlight:**
-  - Gunakan Bootstrap `table-danger` untuk menandai baris hasil uji yang anomali.
-- **Audit Trail Display:**
-  - Gunakan modal atau collapsible section untuk menampilkan riwayat perubahan.
-- **QR Code:**
-  - Tampilkan QR Code di halaman detail batch menggunakan Blade directive.
 
+- **Blade Components:** Gunakan komponen Blade untuk elemen yang berulang (tombol, input, card) demi konsistensi UI.
+
+- **Validation Feedback:** Gunakan class Bootstrap `.is-invalid` dan `.invalid-feedback` untuk menampilkan error validasi secara real-time.
+
+- **Visual Warning:** Gunakan class `table-danger` atau text-red pada baris data yang terdeteksi sebagai **anomali** (hasil di luar batas toleransi).
+
+- **Audit Trail Display:** Tampilkan riwayat perubahan dalam bentuk Modal atau Collapsible section agar tidak memenuhi halaman utama.
+
+- **QR Code Integration:** Tampilkan QR Code secara jelas di halaman detail batch dengan opsi "Cetak Label".
+
+- **Dynamic Scheduling Form:** Gunakan JavaScript vanilla atau Alpine.js untuk menambah/menghapus field interval secara dinamis pada opsi Custom.
+
+- **Conditional Rendering:** Di form registrasi parameter, input "Min Value" dan "Max Value" harus disembunyikan (hidden/disabled) jika parameter yang dipilih adalah tipe **Organoleptik**.

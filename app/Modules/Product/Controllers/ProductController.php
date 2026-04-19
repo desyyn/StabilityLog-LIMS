@@ -11,9 +11,12 @@ use Illuminate\Http\RedirectResponse;
 class ProductController
 {
     private array $availableParameters = [
-        ['key' => 'ph', 'label' => 'pH', 'hint' => 'Rentang 0.0 - 14.0'],
-        ['key' => 'viscosity', 'label' => 'Viskositas', 'hint' => 'Masukkan batas min/max dalam cP'],
-        ['key' => 'organoleptic', 'label' => 'Organoleptik', 'hint' => 'Masukkan nilai deskriptif atau ambang batas.'],
+        ['key' => 'ph', 'label' => 'pH', 'type' => 'numeric', 'unit' => 'pH', 'hint' => 'Rentang 0.0 - 14.0'],
+        ['key' => 'viscosity', 'label' => 'Viskositas', 'type' => 'numeric', 'unit' => 'cP', 'hint' => 'Masukkan batas min/max dalam cP'],
+        ['key' => 'color', 'label' => 'Warna', 'type' => 'organoleptic', 'unit' => null, 'hint' => 'Penilaian kualitatif warna sampel.'],
+        ['key' => 'odor', 'label' => 'Bau', 'type' => 'organoleptic', 'unit' => null, 'hint' => 'Penilaian kualitatif aroma sampel.'],
+        ['key' => 'texture', 'label' => 'Tekstur', 'type' => 'organoleptic', 'unit' => null, 'hint' => 'Penilaian kualitatif tekstur sampel.'],
+        ['key' => 'clarity', 'label' => 'Kejernihan', 'type' => 'organoleptic', 'unit' => null, 'hint' => 'Penilaian kualitatif kejernihan sampel.'],
     ];
 
     /**
@@ -47,7 +50,7 @@ class ProductController
             $action->execute($request->validated());
 
             return redirect()->route('products.index')
-                ->with('success', 'Sampel berhasil didaftarkan! Jadwal uji otomatis telah dibuat (H+1, H+7, H+30).');
+                ->with('success', 'Sampel berhasil didaftarkan dan jadwal uji stabilitas telah dibuat.');
         } catch (\Exception $e) {
             return back()
                 ->with('error', 'Gagal mendaftarkan sampel. Silahkan coba lagi. ' . $e->getMessage())

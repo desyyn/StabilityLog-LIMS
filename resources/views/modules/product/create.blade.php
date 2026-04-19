@@ -80,8 +80,56 @@
                     </div>
 
                     <div class="mb-4">
+                        <label class="form-label d-block"><i class="fas fa-calendar-alt me-2" style="color: #667eea;"></i> Penjadwalan Uji</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="schedule_mode" id="schedule_standard" value="standard" {{ old('schedule_mode', 'standard') === 'standard' ? 'checked' : '' }}>
+                            <label class="form-check-label" for="schedule_standard">Standar (berdasarkan bulan)</label>
+                        </div>
+                        <div id="standard_schedule_section" class="ps-4 mb-3">
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="radio" name="stability_type" id="stability_accelerated" value="accelerated" {{ old('stability_type', 'accelerated') === 'accelerated' ? 'checked' : '' }}>
+                                <label class="form-check-label" for="stability_accelerated">Accelerated: 0,1,2,3,6 bulan</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="stability_type" id="stability_long_term" value="long_term" {{ old('stability_type') === 'long_term' ? 'checked' : '' }}>
+                                <label class="form-check-label" for="stability_long_term">Long-Term: 0,1,2,3,6,9,12 bulan</label>
+                            </div>
+                        </div>
+
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="schedule_mode" id="schedule_custom" value="custom" {{ old('schedule_mode') === 'custom' ? 'checked' : '' }}>
+                            <label class="form-check-label" for="schedule_custom">Custom (berdasarkan hari)</label>
+                        </div>
+                        <div id="custom_schedule_section" class="ps-4 d-none">
+                            <div id="custom_interval_container">
+                                @php($oldIntervals = old('custom_intervals', [1, 7, 30]))
+                                @foreach($oldIntervals as $index => $interval)
+                                    <div class="input-group mb-2 custom-interval-row">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            name="custom_intervals[]"
+                                            class="form-control @error('custom_intervals.' . $index) is-invalid @enderror"
+                                            placeholder="Masukkan interval hari"
+                                            value="{{ $interval }}"
+                                        >
+                                        <button type="button" class="btn btn-outline-danger remove-interval-btn">Hapus</button>
+                                    </div>
+                                    @error('custom_intervals.' . $index)
+                                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                                    @enderror
+                                @endforeach
+                            </div>
+                            @error('custom_intervals')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                            <button type="button" id="add_interval_btn" class="btn btn-outline-primary btn-sm">Tambah Interval</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
                         <label class="form-label"><i class="fas fa-sliders-h me-2" style="color: #667eea;"></i> Parameter Pengujian</label>
-                        <p class="text-muted" style="font-size: 13px;">Pilih minimal satu parameter dan isikan ambang batas min/max.</p>
+                        <p class="text-muted" style="font-size: 13px;">Pilih minimal satu parameter. Batas min/max hanya untuk parameter numerik.</p>
 
                         @foreach($availableParameters as $item)
                             <div class="card parameter-card mb-3 border-secondary">
@@ -93,8 +141,10 @@
                                     <p class="text-secondary small mb-3">{{ $item['hint'] }}</p>
 
                                     <input type="hidden" name="parameters[{{ $item['key'] }}][param_name]" value="{{ $item['label'] }}">
+                                    <input type="hidden" name="parameters[{{ $item['key'] }}][type]" value="{{ $item['type'] }}">
+                                    <input type="hidden" name="parameters[{{ $item['key'] }}][unit]" value="{{ $item['unit'] }}">
 
-                                    <div class="row g-3">
+                                    <div class="row g-3 parameter-inputs {{ $item['type'] === 'organoleptic' ? 'd-none' : '' }}" data-parameter-type="{{ $item['type'] }}">
                                         <div class="col-6">
                                             <label class="form-label" for="min_{{ $item['key'] }}">Batas Min</label>
                                             <input type="number" step="0.01" id="min_{{ $item['key'] }}" name="parameters[{{ $item['key'] }}][min_limit]" class="form-control @error('parameters.' . $item['key'] . '.min_limit') is-invalid @enderror" value="{{ old('parameters.' . $item['key'] . '.min_limit') }}" {{ old('parameters.' . $item['key'] . '.enabled') ? '' : 'disabled' }}>
@@ -108,6 +158,13 @@
                                             @error('parameters.' . $item['key'] . '.max_limit')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
+                                        </div>
+                                    </div>
+                                    <div class="row g-3 organoleptic-input {{ $item['type'] === 'organoleptic' ? '' : 'd-none' }}" data-parameter-type="{{ $item['type'] }}">
+                                        <div class="col-12">
+                                            <label class="form-label" for="organoleptic_{{ $item['key'] }}">Catatan Organoleptik</label>
+                                            <textarea id="organoleptic_{{ $item['key'] }}" name="parameters[{{ $item['key'] }}][organoleptic_note]" class="form-control" rows="3" placeholder="Contoh: tidak berbau, tekstur halus">{{ old('parameters.' . $item['key'] . '.organoleptic_note') }}</textarea>
+                                            <div class="form-text">Input ini hanya untuk parameter organoleptik. Min/max tidak diperlukan.</div>
                                         </div>
                                     </div>
                                 </div>
@@ -132,25 +189,74 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const parameterCheckboxes = document.querySelectorAll('.form-check-input');
+            const parameterCheckboxes = document.querySelectorAll('.form-check-input[data-param-key]');
+            const standardModeRadio = document.getElementById('schedule_standard');
+            const customModeRadio = document.getElementById('schedule_custom');
+            const standardSection = document.getElementById('standard_schedule_section');
+            const customSection = document.getElementById('custom_schedule_section');
+            const addIntervalButton = document.getElementById('add_interval_btn');
+            const intervalContainer = document.getElementById('custom_interval_container');
 
             const toggleParameterInputs = (checkbox) => {
                 const key = checkbox.dataset.paramKey;
                 const minInput = document.getElementById(`min_${key}`);
                 const maxInput = document.getElementById(`max_${key}`);
+                const parameterInputs = checkbox.closest('.card-body').querySelector('.parameter-inputs');
+                const organolepticInput = checkbox.closest('.card-body').querySelector('.organoleptic-input');
+                const parameterType = parameterInputs?.dataset.parameterType;
 
-                if (!minInput || !maxInput) {
+                if (!minInput || !maxInput || !parameterInputs || !organolepticInput) {
                     return;
                 }
 
                 const enabled = checkbox.checked;
-                minInput.disabled = !enabled;
-                maxInput.disabled = !enabled;
+                const isOrganoleptic = parameterType === 'organoleptic';
 
                 if (!enabled) {
-                    minInput.value = minInput.value ? minInput.value : '';
-                    maxInput.value = maxInput.value ? maxInput.value : '';
+                    parameterInputs.classList.add('d-none');
+                    organolepticInput.classList.add('d-none');
+                    minInput.disabled = true;
+                    maxInput.disabled = true;
+                    return;
                 }
+
+                if (isOrganoleptic) {
+                    parameterInputs.classList.add('d-none');
+                    organolepticInput.classList.remove('d-none');
+                    minInput.value = '';
+                    maxInput.value = '';
+                    minInput.disabled = true;
+                    maxInput.disabled = true;
+                    return;
+                }
+
+                parameterInputs.classList.remove('d-none');
+                organolepticInput.classList.add('d-none');
+                minInput.disabled = false;
+                maxInput.disabled = false;
+            };
+
+            const toggleScheduleMode = () => {
+                if (customModeRadio.checked) {
+                    standardSection.classList.add('d-none');
+                    customSection.classList.remove('d-none');
+                    return;
+                }
+
+                standardSection.classList.remove('d-none');
+                customSection.classList.add('d-none');
+            };
+
+            const bindRemoveButtons = () => {
+                intervalContainer.querySelectorAll('.remove-interval-btn').forEach((button) => {
+                    button.onclick = function () {
+                        const rows = intervalContainer.querySelectorAll('.custom-interval-row');
+                        if (rows.length <= 1) {
+                            return;
+                        }
+                        this.closest('.custom-interval-row')?.remove();
+                    };
+                });
             };
 
             parameterCheckboxes.forEach((checkbox) => {
@@ -158,6 +264,23 @@
                 checkbox.addEventListener('change', function () {
                     toggleParameterInputs(this);
                 });
+            });
+
+            standardModeRadio.addEventListener('change', toggleScheduleMode);
+            customModeRadio.addEventListener('change', toggleScheduleMode);
+            toggleScheduleMode();
+            bindRemoveButtons();
+
+            addIntervalButton.addEventListener('click', function () {
+                const row = document.createElement('div');
+                row.className = 'input-group mb-2 custom-interval-row';
+                row.innerHTML = `
+                    <input type="number" min="0" name="custom_intervals[]" class="form-control" placeholder="Masukkan interval hari">
+                    <button type="button" class="btn btn-outline-danger remove-interval-btn">Hapus</button>
+                `;
+
+                intervalContainer.appendChild(row);
+                bindRemoveButtons();
             });
         });
     </script>

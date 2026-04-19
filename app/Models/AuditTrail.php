@@ -32,4 +32,19 @@ class AuditTrail extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function getTableNameAttribute(): string
+    {
+        return $this->auditable_type;
+    }
+
+    public function getOldDataAttribute(): ?array
+    {
+        return $this->old_values;
+    }
+
+    public function getNewDataAttribute(): ?array
+    {
+        return $this->new_values;
+    }
 }

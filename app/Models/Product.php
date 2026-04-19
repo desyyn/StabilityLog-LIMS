@@ -7,45 +7,46 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
-    /**
-     * Attributes yang dapat diisi mass assignment
-     */
     protected $fillable = [
         'name',
+        'description',
         'batch_code',
         'qr_code',
         'status',
     ];
 
-    /**
-     * Casting untuk tipe data yang konsisten
-     */
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
-    /**
-     * Relasi ke StabilityTest (1 Product memiliki banyak StabilityTest)
-     */
+    public function batches(): HasMany
+    {
+        return $this->hasMany(Batch::class);
+    }
+
     public function stabilityTests(): HasMany
     {
         return $this->hasMany(StabilityTest::class);
     }
 
-    /**
-     * Relasi ke TestingParameter (1 Product memiliki banyak TestingParameter)
-     */
     public function testingParameters(): HasMany
     {
         return $this->hasMany(TestingParameter::class);
     }
 
-    /**
-     * Relasi ke AuditTrail (audit untuk product)
-     */
+    public function parameters(): HasMany
+    {
+        return $this->hasMany(Parameter::class);
+    }
+
     public function auditTrails(): HasMany
     {
         return $this->hasMany(AuditTrail::class, 'auditable_id')->where('auditable_type', 'product');
+    }
+
+    public function auditLogs(): HasMany
+    {
+        return $this->hasMany(AuditLog::class, 'auditable_id')->where('auditable_type', 'product');
     }
 }

@@ -6,6 +6,32 @@
 </head>
 <body class="bg-light">
     <div class="container mt-5">
+        <div class="alert alert-info border mb-4">
+            <div class="fw-semibold mb-2">Mockup RBAC: middleware role sudah aktif.</div>
+            <div class="small text-muted mb-2">
+                Role aktif (simulasi UI): <span class="fw-semibold text-dark">{{ request('mock_role', 'Admin') }}</span>
+            </div>
+            <div class="small mb-2">
+                <div class="fw-semibold mb-1">Penjelasan Role:</div>
+                <ul class="mb-2 ps-3">
+                    <li><strong>Admin</strong>: Akses penuh termasuk daftar, detail, registrasi sampel, dan hapus data.</li>
+                    <li><strong>Formulator</strong>: Dapat registrasi sampel baru, melihat data, dan mengelola pengujian awal.</li>
+                    <li><strong>Teknisi</strong>: Fokus melihat daftar/detail untuk eksekusi pengujian laboratorium.</li>
+                    <li><strong>Manajer R&amp;D</strong>: Memantau hasil dan status stabilitas untuk keputusan pengembangan formula.</li>
+                    <li><strong>QA</strong>: Melihat data untuk verifikasi mutu, audit, dan kepatuhan.</li>
+                </ul>
+            </div>
+            <div class="small mb-2">Gunakan tombol di bawah untuk mengganti role saat demo.</div>
+            <form method="GET" action="{{ route('products.index') }}" class="d-flex gap-2 align-items-center">
+                <select name="mock_role" class="form-select form-select-sm" style="max-width: 220px;">
+                    @foreach(['Admin', 'Formulator', 'Teknisi', 'Manajer R&D', 'QA'] as $role)
+                        <option value="{{ $role }}" @selected(request('mock_role', 'Admin') === $role)>{{ $role }}</option>
+                    @endforeach
+                </select>
+                <button type="submit" class="btn btn-sm btn-primary">Ganti Role (Mockup)</button>
+            </form>
+        </div>
+
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <h4 class="mb-0">Produk Tersimpan</h4>
@@ -18,8 +44,8 @@
             <div class="alert alert-success">{{ session('success') }}</div>
         @endif
 
-        <div class="card shadow-sm">
-            <div class="card-body p-0">
+        <x-ui.card class="shadow-sm">
+            <div class="p-0">
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
@@ -61,7 +87,7 @@
                                         <form action="{{ route('products.destroy', $product) }}" method="POST" onsubmit="return confirm('Hapus sampel ini?');">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-outline-danger">Hapus</button>
+                                            <x-ui.button type="submit" variant="outline-danger" size="sm">Hapus</x-ui.button>
                                         </form>
                                     </div>
                                 </td>
@@ -74,7 +100,7 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        </x-ui.card>
     </div>
 </body>
 </html>

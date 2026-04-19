@@ -38,7 +38,10 @@
                                     <div class="mb-3">
                                         <img src="/{{ $product->qr_code }}" alt="QR Code" class="img-fluid" style="max-width: 240px;" />
                                     </div>
-                                    <a href="/{{ $product->qr_code }}" target="_blank" class="btn btn-sm btn-outline-primary">Buka QR</a>
+                                    <div class="d-flex gap-2">
+                                        <a href="/{{ $product->qr_code }}" target="_blank" class="btn btn-sm btn-outline-primary">Buka QR</a>
+                                        <x-ui.button variant="outline-success" size="sm" onclick="window.print()">Cetak Label</x-ui.button>
+                                    </div>
                                 @else
                                     <p class="text-muted">QR Code belum tersedia.</p>
                                 @endif

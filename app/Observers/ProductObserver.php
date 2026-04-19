@@ -5,13 +5,14 @@ namespace App\Observers;
 use App\Models\AuditTrail;
 use App\Models\Product;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Request;
 
 class ProductObserver
 {
     public function created(Product $product): void
     {
-        AuditTrail::create([
+        $payload = [
             'user_id' => Auth::id(),
             'auditable_type' => 'product',
             'auditable_id' => $product->id,
@@ -21,7 +22,10 @@ class ProductObserver
             'url' => Request::fullUrl(),
             'ip_address' => Request::ip(),
             'user_agent' => Request::userAgent(),
-        ]);
+        ];
+
+        AuditTrail::create($payload);
+        Log::channel('audit')->info('Product created observed', $payload);
     }
 
     public function updated(Product $product): void
@@ -32,7 +36,7 @@ class ProductObserver
             return;
         }
 
-        AuditTrail::create([
+        $payload = [
             'user_id' => Auth::id(),
             'auditable_type' => 'product',
             'auditable_id' => $product->id,
@@ -42,12 +46,15 @@ class ProductObserver
             'url' => Request::fullUrl(),
             'ip_address' => Request::ip(),
             'user_agent' => Request::userAgent(),
-        ]);
+        ];
+
+        AuditTrail::create($payload);
+        Log::channel('audit')->info('Product updated observed', $payload);
     }
 
     public function deleted(Product $product): void
     {
-        AuditTrail::create([
+        $payload = [
             'user_id' => Auth::id(),
             'auditable_type' => 'product',
             'auditable_id' => $product->id,
@@ -57,6 +64,9 @@ class ProductObserver
             'url' => Request::fullUrl(),
             'ip_address' => Request::ip(),
             'user_agent' => Request::userAgent(),
-        ]);
+        ];
+
+        AuditTrail::create($payload);
+        Log::channel('audit')->info('Product deleted observed', $payload);
     }
 }

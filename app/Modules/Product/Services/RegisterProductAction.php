@@ -2,16 +2,18 @@
 
 namespace App\Modules\Product\Services;
 
+use App\Models\Batch;
 use App\Models\Product;
 use App\Models\StabilityTest;
 use App\Models\TestingParameter;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class RegisterProductAction
 {
+    private const ACCELERATED_INTERVALS = [0, 1, 2, 3, 6];
+    private const LONG_TERM_INTERVALS = [0, 1, 2, 3, 6, 9, 12];
+
     /**
      * Eksekusi pendaftaran produk dengan otomatisasi jadwal dan QR generation
      *
@@ -22,28 +24,23 @@ class RegisterProductAction
     {
         try {
             return DB::transaction(function () use ($data) {
-                // 1. Generate QR Code dengan format SVG unik per batch
-                $qrFileName = $data['batch_code'] . '.svg';
-                $qrPath = 'qrcodes/' . $qrFileName;
-
-                if (!is_dir(public_path('qrcodes'))) {
-                    mkdir(public_path('qrcodes'), 0755, true);
-                }
-
-                QrCode::format('svg')
-                    ->size(300)
-                    ->generate(
-                        route('products.show', $data['batch_code']),
-                        public_path($qrPath)
-                    );
-
-                // 2. Buat Product dengan status "Ready"
+                // 1. Buat Product master data yang tetap kompatibel dengan view lama
                 $product = Product::create([
                     'name' => $data['name'],
+                    'description' => $data['description'] ?? null,
                     'batch_code' => $data['batch_code'],
-                    'qr_code' => $qrPath,
                     'status' => 'Ready',
                 ]);
+
+                // 2. Buat batch terkait dan generate QR Code unik
+                $batch = Batch::create([
+                    'product_id' => $product->id,
+                    'batch_code' => $data['batch_code'],
+                    'status' => 'Ready for Testing',
+                ]);
+
+                $qrPath = $batch->generateQRCode();
+                $product->update(['qr_code' => $qrPath]);
 
                 // 3. Simpan parameter pengujian yang dipilih
                 foreach ($data['parameters'] as $parameterKey => $parameterData) {
@@ -54,37 +51,58 @@ class RegisterProductAction
                     TestingParameter::create([
                         'product_id' => $product->id,
                         'param_name' => $parameterData['param_name'],
-                        'min_limit' => $parameterData['min_limit'],
-                        'max_limit' => $parameterData['max_limit'],
+                        'type' => $parameterData['type'] ?? 'numeric',
+                        'unit' => $parameterData['unit'] ?? null,
+                        'min_limit' => $parameterData['type'] === 'organoleptic' ? null : $parameterData['min_limit'],
+                        'max_limit' => $parameterData['type'] === 'organoleptic' ? null : $parameterData['max_limit'],
                     ]);
                 }
 
-                // 4. Otomatisasi Jadwal Uji Stabilitas (H+1, H+7, H+30)
-                $scheduleIntervals = [1, 7, 30];
+                // 4. Otomatisasi jadwal berdasarkan mode standar/custom
+                [$intervalType, $scheduleIntervals] = $this->resolveSchedule($data);
 
-                foreach ($scheduleIntervals as $days) {
-                    StabilityTest::create([
-                        'product_id' => $product->id,
-                        'schedule_date' => Carbon::now()->addDays($days),
-                        'status' => 'Scheduled',
-                    ]);
-                }
+                StabilityTest::scheduleForBatch($batch, $intervalType, $scheduleIntervals);
 
-                Log::info('Product registered successfully', [
+                Log::channel('audit')->info('Product registered successfully', [
                     'product_id' => $product->id,
                     'batch_code' => $data['batch_code'],
                     'schedules_created' => count($scheduleIntervals),
+                    'interval_type' => $intervalType,
+                    'interval_values' => $scheduleIntervals,
                 ]);
 
                 return true;
             });
         } catch (\Exception $e) {
-            Log::error('Product registration failed', [
+            Log::channel('error')->error('Product registration failed', [
                 'batch_code' => $data['batch_code'],
                 'error' => $e->getMessage(),
             ]);
 
             throw $e;
         }
+    }
+
+    private function resolveSchedule(array $data): array
+    {
+        if (($data['schedule_mode'] ?? null) === 'custom') {
+            $customIntervals = collect($data['custom_intervals'] ?? [])
+                ->map(static fn ($value) => (int) $value)
+                ->filter(static fn ($value) => $value >= 0)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            return ['days', $customIntervals];
+        }
+
+        $stabilityType = $data['stability_type'] ?? 'accelerated';
+
+        if ($stabilityType === 'long_term') {
+            return ['months', self::LONG_TERM_INTERVALS];
+        }
+
+        return ['months', self::ACCELERATED_INTERVALS];
     }
 }

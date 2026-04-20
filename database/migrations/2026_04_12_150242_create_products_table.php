@@ -14,9 +14,9 @@ return new class extends Migration
         Schema::create('products', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('batch_code')->unique();
-            $table->text('qr_code')->nullable();
-            $table->string('status')->default('Ready');
+            $table->text('description')->nullable(); // Tambahkan ini
+            $table->string('batch_code');            // Tambahkan ini (mengganti batch_number)
+            $table->string('status')->default('Ready'); // Tambahkan ini
             $table->timestamps();
         });
     }

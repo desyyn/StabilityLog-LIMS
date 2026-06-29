@@ -14,6 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
         ]);
+
+        // MENGGUNAKAN KELAS BARU LARAVEL 11 (Bebas dari Coretan Intelephense)
+        $middleware->web(remove: [
+            \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
